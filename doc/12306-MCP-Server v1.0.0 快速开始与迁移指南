@@ -1,0 +1,392 @@
+# 12306-MCP-Server v1.0.0 快速开始与迁移指南
+
+## 🚀 快速开始（全新安装）
+
+### 1. 克隆项目
+```bash
+git clone https://github.com/your-username/12306-mcp-server.git
+cd 12306-mcp-server
+```
+
+### 2. 安装依赖
+```bash
+npm install
+```
+
+### 3. 配置环境变量（可选）
+```bash
+# 创建 .env 文件
+cat > .env << EOF
+# Session池配置
+SESSION_POOL_MIN_SIZE=3
+SESSION_POOL_MAX_SIZE=8
+SESSION_TTL=1800000
+MAINTENANCE_INTERVAL=300000
+
+# 重试配置
+MAX_RETRIES=3
+RETRY_DELAY=1000
+
+# 日志级别
+LOG_LEVEL=info
+EOF
+```
+
+### 4. 构建项目
+```bash
+npm run build
+```
+
+### 5. 运行服务
+```bash
+# stdio 模式（推荐用于本地开发）
+npm start
+
+# 或 HTTP 模式
+npm run start:http -- --port 8080
+```
+
+### 6. 测试服务
+```bash
+# 在另一个终端
+curl http://localhost:8080/health
+```
+
+## 📦 从 v0.3.x 迁移到 v1.0.0
+
+### 步骤1: 备份当前代码
+```bash
+# 备份整个项目
+cp -r . ../12306-mcp-server-backup
+
+# 或仅备份 src 目录
+cp -r scr scr.backup
+```
+
+### 步骤2: 修复文件路径
+```bash
+# 重命名文件夹
+mv scr src
+
+# 更新 package.json 中的引用
+sed -i 's/scr\//src\//g' package.json
+sed -i 's/"scr"/"src"/g' package.json
+
+# 更新 tsconfig.json
+sed -i 's/"scr"/"src"/g' tsconfig.json
+```
+
+### 步骤3: 替换优化后的文件
+
+将以下文件替换为优化后的版本：
+
+```bash
+# 核心文件
+src/http-client/types.ts         # ✅ 增强的类型定义
+src/http-client/constants.ts     # ✅ 支持环境变量
+src/http-client/session.ts       # ✅ 增加统计和健康检查
+src/http-client/sessionManager.ts  # ✅ 智能会话管理
+src/http-client/apiClient.ts     # ✅ 错误分类和重试
+```
+
+### 步骤4: 更新主入口文件
+
+在 `src/index.ts` 中，确保初始化逻辑正确：
+
+```typescript
+// 在文件顶部，移除顶层await
+// ❌ 旧代码
+const LCQUERY_PATH = await getLCQueryPath();
+const STATIONS: Record<string, StationData> = await getStations();
+
+// ✅ 新代码
+let LCQUERY_PATH: string;
+let STATIONS: Record<string, StationData>;
+
+// 在 init() 函数中初始化
+async function init() {
+    console.log('[Main] Initializing 12306-MCP service...');
+    
+    // 先初始化基础数据
+    LCQUERY_PATH = await getLCQueryPath();
+    STATIONS = await getStations();
+    
+    // 再初始化会话管理器
+    await sessionManager.initialize();
+    
+    console.log('[Main] Service initialized successfully');
+}
+```
+
+### 步骤5: 更新 API 调用
+
+查找所有 `make12306Request` 的调用，替换为 `apiClient.get`：
+
+**使用正则表达式批量替换：**
+
+```bash
+# 在项目根目录执行
+find src -name "*.ts" -type f -exec sed -i \
+  's/make12306Request(\([^,]*\),\s*\([^,]*\),\s*{.*Cookie:.*})/apiClient.get(\1, \2)/g' {} +
+```
+
+**或手动替换每个调用：**
+
+```typescript
+// ❌ 旧代码
+const cookies = await getCookie();
+const response = await make12306Request(queryUrl, queryParams, {
+    Cookie: formatCookies(cookies)
+});
+
+// ✅ 新代码
+const response = await apiClient.get<ResponseType>(queryUrl, queryParams);
+```
+
+### 步骤6: 安装新依赖（如需要）
+
+```bash
+# 如果添加了新的依赖
+npm install
+
+# 更新类型定义
+npm install --save-dev @types/node
+```
+
+### 步骤7: 重新构建
+```bash
+# 清理旧构建
+rm -rf build/
+
+# 重新构建
+npm run build
+```
+
+### 步骤8: 测试
+```bash
+# 运行单元测试
+npm test
+
+# 启动服务并测试
+npm start
+```
+
+## 🔍 迁移检查清单
+
+### 文件结构
+- [ ] `scr/` 重命名为 `src/`
+- [ ] `src/http-client/types.ts` 包含正确的类型定义
+- [ ] `src/http-client/constants.ts` 支持环境变量
+- [ ] `src/http-client/session.ts` 包含统计功能
+- [ ] `src/http-client/sessionManager.ts` 包含队列管理
+- [ ] `src/http-client/apiClient.ts` 包含错误分类
+
+### 代码更新
+- [ ] 移除 `getCookie()` 函数
+- [ ] 移除 `make12306Request()` 函数
+- [ ] 所有请求改用 `apiClient.get()`
+- [ ] 顶层 await 移到 `init()` 函数
+- [ ] 添加 `cleanup()` 调用
+
+### 配置
+- [ ] 创建 `.env` 文件（可选）
+- [ ] 验证环境变量生效
+- [ ] 调整池大小参数
+- [ ] 配置日志级别
+
+### 测试
+- [ ] 单元测试通过
+- [ ] 服务正常启动
+- [ ] 查询功能正常
+- [ ] 会话池正常工作
+- [ ] 错误处理正确
+
+## 🐛 迁移常见问题
+
+### Q1: 构建失败，提示找不到模块
+```
+Error: Cannot find module './http-client/index.js'
+```
+
+**解决**:
+```bash
+# 确保文件夹名称正确
+ls -la src/http-client/
+
+# 重新构建
+npm run build
+
+# 检查 tsconfig.json
+cat tsconfig.json | grep "src"
+```
+
+### Q2: 运行时报错 "SessionManager is not initialized"
+```
+Error: SessionManager is not initialized
+```
+
+**解决**:
+```typescript
+// 确保在使用前初始化
+async function main() {
+    await sessionManager.initialize();  // ✅ 必须等待初始化完成
+    
+    // 然后再启动服务
+    await server.connect(transport);
+}
+```
+
+### Q3: 会话池创建失败
+```
+[SessionManager] Failed to create any sessions during initialization
+```
+
+**解决**:
+```bash
+# 1. 检查网络连接
+ping kyfw.12306.cn
+
+# 2. 检查防火墙
+sudo ufw status
+
+# 3. 尝试手动访问
+curl -I https://kyfw.12306.cn/otn/leftTicket/init
+
+# 4. 增加重试次数
+export MAX_RETRIES=5
+export RETRY_DELAY=2000
+```
+
+### Q4: TypeScript 编译错误
+```
+error TS2307: Cannot find module './types.js'
+```
+
+**解决**:
+```typescript
+// 确保使用 .js 扩展名（即使是 TypeScript）
+import { SessionState } from './types.js';  // ✅ 正确
+import { SessionState } from './types';     // ❌ 错误
+```
+
+### Q5: 环境变量不生效
+```bash
+# 安装 dotenv
+npm install dotenv
+
+# 在入口文件顶部添加
+import 'dotenv/config';
+
+# 或在启动脚本中
+node -r dotenv/config build/index.js
+```
+
+## 📊 迁移前后对比
+
+### API 调用对比
+
+**旧版本**:
+```typescript
+// 步骤繁琐，需要手动管理Cookie
+const cookies = await getCookie();
+const headers = {
+    Cookie: Object.entries(cookies)
+        .map(([k, v]) => `${k}=${v}`)
+        .join('; '),
+    'User-Agent': 'Mozilla/5.0...'
+};
+const response = await make12306Request(url, params, headers);
+```
+
+**新版本**:
+```typescript
+// 一行代码，自动管理
+const response = await apiClient.get<ResponseType>(url, params);
+```
+
+### 错误处理对比
+
+**旧版本**:
+```typescript
+try {
+    const response = await make12306Request(url, params, headers);
+} catch (error) {
+    // 无法区分错误类型
+    console.error('Request failed:', error);
+}
+```
+
+**新版本**:
+```typescript
+try {
+    const response = await apiClient.get<ResponseType>(url, params);
+} catch (error) {
+    if (error instanceof SessionError) {
+        switch (error.type) {
+            case ErrorType.SESSION_INVALID:
+                console.log('会话失效，已自动重试');
+                break;
+            case ErrorType.NETWORK_ERROR:
+                console.log('网络错误，请检查连接');
+                break;
+            case ErrorType.RATE_LIMIT:
+                console.log('请求过快，请稍后重试');
+                break;
+        }
+    }
+}
+```
+
+## 🎉 迁移完成验证
+
+### 1. 功能验证
+```bash
+# 测试车票查询
+curl -X POST http://localhost:8080/tools/get-tickets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "date": "2025-11-01",
+    "fromStation": "BJP",
+    "toStation": "SHH"
+  }'
+```
+
+### 2. 性能验证
+```bash
+# 使用 ab 进行压力测试
+ab -n 100 -c 10 http://localhost:8080/health
+```
+
+### 3. 监控验证
+```typescript
+// 检查会话池状态
+const health = sessionManager.getHealthStatus();
+console.log('Pool Status:', health.poolStatus);
+console.log('Pending Requests:', health.pendingRequests);
+```
+
+### 4. 日志验证
+```bash
+# 查看日志输出
+tail -f logs/app.log | grep SessionManager
+```
+
+## 📚 下一步
+
+1. **阅读优化指南**: 了解如何调优配置
+2. **查看代码审查报告**: 了解潜在改进点
+3. **配置监控**: 添加 Prometheus 指标
+4. **编写测试**: 提高测试覆盖率
+5. **优化部署**: 使用 Docker 容器化
+
+## 🆘 获取帮助
+
+- **GitHub Issues**: https://github.com/your-username/12306-mcp-server/issues
+- **文档**: 查看项目 `doc/` 目录
+- **社区**: [讨论区链接]
+
+---
+
+**迁移指南版本**: v1.0.0  
+**最后更新**: 2025-10-20  
+**预计迁移时间**: 30-60分钟

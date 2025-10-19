@@ -1,0 +1,195 @@
+version: '3.8'
+
+# ============================================
+# 12306-MCP-Server Docker Compose 配置
+# ============================================
+
+services:
+  # ==========================================
+  # 主服务
+  # ==========================================
+  12306-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 12306-mcp-server:latest
+    container_name: 12306-mcp-server
+    restart: unless-stopped
+    
+    # 端口映射
+    ports:
+      - "8080:8080"
+      - "9090:9090"  # Prometheus metrics (可选)
+    
+    # 环境变量
+    environment:
+      - NODE_ENV=production
+      - SESSION_POOL_MIN_SIZE=3
+      - SESSION_POOL_MAX_SIZE=8
+      - SESSION_TTL=1800000
+      - LOG_LEVEL=info
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - ENABLE_METRICS=true
+      - METRICS_PORT=9090
+    
+    # 或使用环境变量文件
+    # env_file:
+    #   - .env.production
+    
+    # 卷挂载
+    volumes:
+      - ./logs:/app/logs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    # 网络
+    networks:
+      - mcp-network
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================
+  # Prometheus (可选 - 用于监控)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - mcp-network
+    profiles:
+      - monitoring
+
+  # ==========================================
+  # Grafana (可选 - 用于可视化)
+  # ==========================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - mcp-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+  # ==========================================
+  # Redis (可选 - 用于缓存)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - mcp-network
+    profiles:
+      - cache
+
+# ============================================
+# 网络配置
+# ============================================
+networks:
+  mcp-network:
+    driver: bridge
+
+# ============================================
+# 数据卷配置
+# ============================================
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ============================================
+# 使用说明
+# ============================================
+
+# 1. 基础启动 (仅MCP服务)
+#    docker-compose up -d
+
+# 2. 启动并查看日志
+#    docker-compose up
+
+# 3. 启动包含监控服务
+#    docker-compose --profile monitoring up -d
+
+# 4. 启动包含缓存服务
+#    docker-compose --profile cache up -d
+
+# 5. 启动所有服务
+#    docker-compose --profile monitoring --profile cache up -d
+
+# 6. 停止服务
+#    docker-compose down
+
+# 7. 停止并删除卷
+#    docker-compose down -v
+
+# 8. 重新构建
+#    docker-compose build --no-cache
+
+# 9. 查看日志
+#    docker-compose logs -f 12306-mcp
+
+# 10. 扩展服务实例 (负载均衡)
+#     docker-compose up -d --scale 12306-mcp=3
+
+# ============================================
+# 访问地址
+# ============================================
+# MCP服务:      http://localhost:8080
+# Prometheus:   http://localhost:9091
+# Grafana:      http://localhost:3000 (admin/admin)
+# Redis:        localhost:6379

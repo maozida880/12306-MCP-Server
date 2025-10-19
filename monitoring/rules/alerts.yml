@@ -1,0 +1,206 @@
+# ============================================
+# 12306-MCP-Server Alert Rules
+# ============================================
+
+groups:
+  # ==========================================
+  # Service Availability Alerts
+  # ==========================================
+  - name: service_availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up{job="12306-mcp-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "12306-MCP服务不可用"
+          description: "服务 {{ $labels.instance }} 已经下线超过1分钟"
+          
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{status=~"5.."}[5m])
+            /
+            rate(http_requests_total[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "高错误率"
+          description: "错误率超过5%，当前值: {{ $value | humanizePercentage }}"
+
+  # ==========================================
+  # Session Pool Alerts
+  # ==========================================
+  - name: session_pool
+    interval: 30s
+    rules:
+      - alert: SessionPoolSaturated
+        expr: session_pool_available == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: session
+        annotations:
+          summary: "会话池饱和"
+          description: "会话池中没有可用会话，所有请求将排队等待"
+          
+      - alert: HighSessionInvalidRate
+        expr: |
+          (
+            rate(session_invalidated_total[5m])
+            /
+            rate(session_created_total[5m])
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          component: session
+        annotations:
+          summary: "会话失效率过高"
+          description: "超过30%的会话在创建后很快失效，可能是12306风控策略变更"
+          
+      - alert: SessionPoolBelowMinimum
+        expr: session_pool_total < 2
+        for: 5m
+        labels:
+          severity: critical
+          component: session
+        annotations:
+          summary: "会话池低于最小值"
+          description: "会话池大小为 {{ $value }}，低于配置的最小值，服务可能不稳定"
+
+  # ==========================================
+  # Performance Alerts
+  # ==========================================
+  - name: performance
+    interval: 30s
+    rules:
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "响应时间过长"
+          description: "P95响应时间超过3秒: {{ $value }}s"
+          
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: resource
+        annotations:
+          summary: "CPU使用率过高"
+          description: "CPU使用率超过80%: {{ $value | humanizePercentage }}"
+          
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 / 1024 > 1.5
+        for: 5m
+        labels:
+          severity: warning
+          component: resource
+        annotations:
+          summary: "内存使用过高"
+          description: "内存使用超过1.5GB: {{ $value }}GB"
+
+  # ==========================================
+  # Request Queue Alerts
+  # ==========================================
+  - name: request_queue
+    interval: 30s
+    rules:
+      - alert: LongRequestQueue
+        expr: session_pending_requests > 10
+        for: 2m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "请求队列过长"
+          description: "当前有 {{ $value }} 个请求在队列中等待，考虑增加会话池大小"
+          
+      - alert: RequestQueueTimeout
+        expr: rate(request_queue_timeout_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "请求队列超时"
+          description: "有请求因等待超时而被拒绝"
+
+  # ==========================================
+  # 12306 API Health Alerts
+  # ==========================================
+  - name: api_health
+    interval: 30s
+    rules:
+      - alert: API12306Unreachable
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.5
+        for: 3m
+        labels:
+          severity: critical
+          component: upstream
+        annotations:
+          summary: "12306 API不可达"
+          description: "超过50%的请求失败，12306服务可能不可用"
+          
+      - alert: FrequentCookieRefresh
+        expr: rate(session_created_total[5m]) > 1
+        for: 10m
+        labels:
+          severity: info
+          component: session
+        annotations:
+          summary: "频繁刷新Cookie"
+          description: "Cookie刷新频率超过正常水平，可能表示会话稳定性问题"
+
+  # ==========================================
+  # Business Logic Alerts
+  # ==========================================
+  - name: business_logic
+    interval: 60s
+    rules:
+      - alert: NoTicketsFound
+        expr: |
+          (
+            sum(rate(ticket_query_no_results_total[30m]))
+            /
+            sum(rate(ticket_query_total[30m]))
+          ) > 0.9
+        for: 10m
+        labels:
+          severity: info
+          component: business
+        annotations:
+          summary: "大量查询无结果"
+          description: "超过90%的查询返回无票，可能是数据问题或查询参数问题"
+
+# ============================================
+# Alert Severity Levels
+# ============================================
+# critical:  需要立即处理的严重问题，影响服务可用性
+# warning:   需要关注的问题，可能影响性能或稳定性
+# info:      信息性告警，用于趋势观察
+
+# ============================================
+# 告警测试
+# ============================================
+# 验证规则语法:
+# promtool check rules alerts.yml
+#
+# 测试告警:
+# curl -X POST http://localhost:9090/-/reload
