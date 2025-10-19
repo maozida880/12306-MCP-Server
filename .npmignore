@@ -1,22 +1,107 @@
-# 源码和测试
+# ============================================
+# .npmignore - 控制哪些文件不会被发布到 npm
+# ============================================
+
+# 源代码（只发布编译后的 build/）
 src/
 test/
+tests/
+__tests__/
 
-# 配置文件和日志
+# 配置文件
 .env
 .env.*
+!.env.example
+.eslintrc*
+.prettierrc*
+jest.config.js
+jest.config.ts
+tsconfig.json
+tsconfig.*.json
+
+# CI/CD 配置
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Docker 相关
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# 监控和基准测试
+monitoring/
+benchmark.ts
+benchmark.js
+
+# 文档源文件（保留 README.md）
+docs/
+doc/
+*.md
+!README.md
+!CHANGELOG.md
+!LICENSE.md
+
+# 开发工具
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-# 系统和工具配置
-.github/
-.vscode/
+# 依赖目录
 node_modules/
-coverage/
+.pnp
+.pnp.js
 
-# 构建产物之外的文件
-tsconfig.json
-benchmark.ts
-docker-compose.yml
-Dockerfile
-monitoring/
+# 测试覆盖率
+coverage/
+.nyc_output/
+*.lcov
+
+# 临时文件
+.tmp/
+tmp/
+temp/
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 备份文件
+*.backup
+*.bak
+*.old
+
+# Git 相关
+.git/
+.gitignore
+.gitattributes
+
+# 编辑器配置
+.editorconfig
+
+# 脚本（除了 postinstall 需要的）
+scripts/
+!scripts/fix-shebang.js
+
+# 性能测试结果
+benchmark-results.json
+
+# 环境特定文件
+.npmrc.local
+
+# 其他
+*.tsbuildinfo
