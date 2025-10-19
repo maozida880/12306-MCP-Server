@@ -1,6 +1,6 @@
 {
   "name": "12306-mcp-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "一个为大型语言模型（LLM）设计的、高可用的12306余票查询工具服务，搭载智能会话管理引擎。支持 get-tickets、get-interline-tickets、get-train-route-stations、get-station-code 等查询工具。",
   "main": "build/index.js",
   "types": "build/index.d.ts",
