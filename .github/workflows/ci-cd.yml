@@ -1,0 +1,280 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+# ============================================
+# 环境变量
+# ============================================
+env:
+  NODE_VERSION: '18'
+  DOCKER_IMAGE: '12306-mcp-server'
+
+# ============================================
+# 作业定义
+# ============================================
+jobs:
+  # ==========================================
+  # 代码检查与测试
+  # ==========================================
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci
+      
+      - name: 🔍 Lint code
+        run: npm run lint
+        continue-on-error: true
+      
+      - name: 🏗️ Build project
+        run: npm run build
+      
+      - name: 🧪 Run tests
+        run: npm test
+        env:
+          CI: true
+      
+      - name: 📊 Upload coverage
+        uses: codecov/codecov-action@v3
+        if: matrix.node-version == '18.x'
+        with:
+          file: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+
+  # ==========================================
+  # 安全扫描
+  # ==========================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔒 Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+      
+      - name: 🔍 Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      
+      - name: 🐳 Build Docker image for scanning
+        run: docker build -t ${{ env.DOCKER_IMAGE }}:scan .
+      
+      - name: 🔒 Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE }}:scan
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: 📤 Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ==========================================
+  # 构建 Docker 镜像
+  # ==========================================
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push' || github.event_name == 'release'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: 🏷️ Generate Docker tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+      
+      - name: 🏗️ Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ==========================================
+  # 性能测试
+  # ==========================================
+  benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm ci
+      
+      - name: 🏗️ Build project
+        run: npm run build
+      
+      - name: 🚀 Start service
+        run: |
+          npm start &
+          sleep 10
+      
+      - name: 📊 Run benchmark
+        run: |
+          npx ts-node benchmark.ts
+        env:
+          CONCURRENT_USERS: 10
+          REQUESTS_PER_USER: 10
+          TEST_BASE_URL: http://localhost:8080
+      
+      - name: 📤 Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmark-results.json
+
+  # ==========================================
+  # 部署到生产环境
+  # ==========================================
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, benchmark]
+    if: github.event_name == 'release'
+    environment:
+      name: production
+      url: https://12306-mcp.yourdomain.com
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: 🚀 Deploy to ECS
+        run: |
+          # 更新 ECS 服务
+          aws ecs update-service \
+            --cluster 12306-mcp-cluster \
+            --service 12306-mcp-service \
+            --force-new-deployment
+      
+      - name: ⏳ Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster 12306-mcp-cluster \
+            --services 12306-mcp-service
+      
+      - name: 🏥 Health check
+        run: |
+          for i in {1..10}; do
+            if curl -f https://12306-mcp.yourdomain.com/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Waiting for service to be healthy..."
+            sleep 10
+          done
+          echo "Health check failed"
+          exit 1
+      
+      - name: 📢 Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment ${{ job.status }}
+            Version: ${{ github.ref }}
+            Author: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # ==========================================
+  # 回滚（如果部署失败）
+  # ==========================================
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+    
+    steps:
+      - name: 🔄 Rollback deployment
+        run: |
+          echo "Deployment failed, rolling back..."
+          # 实现回滚逻辑
+      
+      - name: 📢 Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: 'Deployment failed and rolled back'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+# ============================================
+# 工作流程触发条件说明
+# ============================================
+# 1. 推送到 main/develop 分支: 运行测试、构建、基准测试
+# 2. Pull Request: 运行测试和安全扫描
+# 3. 创建 Release: 完整的 CI/CD，包括部署

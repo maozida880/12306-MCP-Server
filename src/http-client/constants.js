@@ -1,5 +1,7 @@
 // src/http-client/constants.ts
 
+import { SessionManagerConfig } from './types.js';
+
 /**
  * 预定义的 User-Agent 列表
  * 模拟不同浏览器和设备,降低被识别为机器人的概率
@@ -35,11 +37,64 @@ export const USER_AGENTS = [
 ];
 
 /**
+ * 从环境变量或使用默认值获取配置
+ */
+const getConfig = (): SessionManagerConfig => {
+    return {
+        minSize: parseInt(process.env.SESSION_POOL_MIN_SIZE || '2', 10),
+        maxSize: parseInt(process.env.SESSION_POOL_MAX_SIZE || '5', 10),
+        sessionTTL: parseInt(process.env.SESSION_TTL || String(30 * 60 * 1000), 10),
+        maintenanceInterval: parseInt(
+            process.env.MAINTENANCE_INTERVAL || String(5 * 60 * 1000),
+            10
+        ),
+        maxRetries: parseInt(process.env.MAX_RETRIES || '3', 10),
+        retryDelay: parseInt(process.env.RETRY_DELAY || '1000', 10),
+    };
+};
+
+/**
  * 会话池配置常量
  */
-export const POOL_CONFIG = {
-    MIN_SIZE: 2,  // 最小池大小
-    MAX_SIZE: 5,  // 最大池大小
-    SESSION_TTL: 30 * 60 * 1000,  // 会话有效期: 30分钟
-    MAINTENANCE_INTERVAL: 5 * 60 * 1000,  // 维护任务间隔: 5分钟
+export const POOL_CONFIG = getConfig();
+
+/**
+ * 验证配置的有效性
+ */
+export const validateConfig = (config: SessionManagerConfig): boolean => {
+    if (config.minSize < 1 || config.minSize > config.maxSize) {
+        console.error('[Config] Invalid minSize or maxSize configuration');
+        return false;
+    }
+    
+    if (config.sessionTTL < 60000) {
+        console.warn('[Config] sessionTTL is less than 1 minute, this may cause frequent refreshes');
+    }
+    
+    if (config.maintenanceInterval < 60000) {
+        console.warn('[Config] maintenanceInterval is less than 1 minute');
+    }
+    
+    return true;
 };
+
+/**
+ * 12306 API 相关常量
+ */
+export const API_CONSTANTS = {
+    BASE_URL: 'https://kyfw.12306.cn',
+    INIT_URL: 'https://kyfw.12306.cn/otn/leftTicket/init',
+    TIMEOUT: 10000, // 10秒超时
+    MAX_CONCURRENT_REQUESTS: 3, // 最大并发请求数
+} as const;
+
+/**
+ * 会话失效的错误消息模式
+ */
+export const SESSION_INVALID_PATTERNS = [
+    '您还没有登录',
+    '请先登录',
+    'not logged in',
+    'login required',
+    'session expired',
+] as const;
