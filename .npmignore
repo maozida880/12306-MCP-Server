@@ -1,0 +1,22 @@
+# 源码和测试
+src/
+test/
+
+# 配置文件和日志
+.env
+.env.*
+*.log
+logs/
+
+# 系统和工具配置
+.github/
+.vscode/
+node_modules/
+coverage/
+
+# 构建产物之外的文件
+tsconfig.json
+benchmark.ts
+docker-compose.yml
+Dockerfile
+monitoring/
