@@ -314,9 +314,9 @@ git push origin feature/your-feature
 
 ## 📧 联系方式
 
-- **Issues**: [GitHub Issues](https://github.com/your-username/12306-mcp-server/issues)
-- **Email**: your-email@example.com
-- **Discussion**: [GitHub Discussions](https://github.com/your-username/12306-mcp-server/discussions)
+- **Issues**: [GitHub Issues](https://github.com/maozida880/12306-mcp-server/issues)
+- **Email**: maozida880@example.com
+- **Discussion**: [GitHub Discussions](https://github.com/maozida880/12306-mcp-server/discussions)
 
 ## ⭐ Star History
 
