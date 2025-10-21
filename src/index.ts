@@ -1465,6 +1465,7 @@ program
         'host to bind server to. Default is localhost. Use 0.0.0.0 to bind to all interfaces.'
     )
     .option('--port <port>', 'port to listen on for SSE and HTTP transport.')
+    .option('--transport <mode>', 'transport mode: stdio, http, or sse. Default is stdio.')
     .action(async (options) => {
         try {
             // 初始化 SessionManager
@@ -1483,16 +1484,30 @@ program
                 process.exit(0);
             });
             
-            if (options.port || options.host) {
+            const transportMode = options.transport || process.env.TRANSPORT_MODE || 'stdio';
+            
+            if (transportMode === 'sse' || transportMode === 'http' || options.port || options.host) {
+                // SSE/HTTP 模式
+                const host = options.host || process.env.SERVER_HOST || '127.0.0.1';
+                const port = options.port || process.env.SERVER_PORT || '8080';
+                
+                console.log(`[Main] Starting server in ${transportMode} mode on ${host}:${port}`);
+                
                 await startSseAndStreamableHttpMcpServer({
-                    host: options.host,
-                    port: options.port,
+                    host: host,
+                    port: parseInt(port),
                     // @ts-ignore
                     createMcpServer: async ({ headers }) => {
+                        console.log('[Main] New SSE connection established');
                         return server;
                     },
                 });
+                
+                console.log(`[Main] ✓ SSE server ready at http://${host}:${port}/sse`);
+                console.log(`[Main] ✓ Health check at http://${host}:${port}/health`);
             } else {
+                // Stdio 模式（默认）
+                console.log('[Main] Starting server in stdio mode');
                 const transport = new StdioServerTransport();
                 await server.connect(transport);
                 console.error('12306 MCP Server running on stdio @Joooook');
