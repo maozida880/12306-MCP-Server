@@ -2,8 +2,8 @@
 
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build Status](https://github.com/your-username/12306-mcp-server/workflows/CI/badge.svg)](https://github.com/your-username/12306-mcp-server/actions)
-[![Docker Pulls](https://img.shields.io/docker/pulls/your-username/12306-mcp-server.svg)](https://hub.docker.com/r/your-username/12306-mcp-server)
+[![Build Status](https://github.com/maozida880/12306-mcp-server/workflows/CI/badge.svg)](https://github.com/maozida880/12306-mcp-server/actions)
+[![Docker Pulls](https://img.shields.io/docker/pulls/maozida880/12306-mcp-server.svg)](https://hub.docker.com/r/maozida880/12306-mcp-server)
 
 **一个为大型语言模型（LLM）设计的、高可用的12306余票查询工具服务，现已搭载智能会话管理引擎。**
 
@@ -64,7 +64,7 @@ npm install -g 12306-mcp-server
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/12306-mcp-server.git
+git clone https://github.com/maozida880/12306-mcp-server.git
 cd 12306-mcp-server
 
 # 安装依赖
@@ -258,7 +258,7 @@ GET /health/detailed
 ```bash
 # Fork 项目
 # Clone 到本地
-git clone https://github.com/your-username/12306-mcp-server.git
+git clone https://github.com/maozida880/12306-mcp-server.git
 
 # 创建特性分支
 git checkout -b feature/your-feature
