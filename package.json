@@ -16,6 +16,9 @@
   "scripts": {
     "start": "node build/index.js",
     "start:http": "node build/index.js --port 8080",
+    "start:sse": "node build/index.js --port 8080 --transport sse",
+    "start:sse:prod": "NODE_ENV=production node build/index.js --host 0.0.0.0 --port 8080 --transport sse",
+    "dev:sse": "ts-node src/index.ts --port 8080 --transport sse",
     "build": "tsc && npm run fix-shebang",
     "build:watch": "tsc --watch",
     "fix-shebang": "node scripts/fix-shebang.js",
