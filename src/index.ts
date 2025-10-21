@@ -1531,6 +1531,13 @@ program
                         return server;
                     },
                 });
+                console.log('[Main] ============================================');
+                console.log('[Main] Server is ready and listening');
+                console.log(`[Main] SSE endpoint: http://${host}:${port}/sse`);
+                console.log(`[Main] Message endpoint: http://${host}:${port}/message`);
+                
+                // 输出一个就绪标记，供 ModelScope 检测
+                console.log('[Main] READY');
                 
                 console.log(`[Main] ✓ SSE server ready at http://${host}:${port}/sse`);
                 console.log(`[Main] ✓ Health check at http://${host}:${port}/health`);
@@ -1539,7 +1546,8 @@ program
                 console.log('[Main] Starting server in stdio mode');
                 const transport = new StdioServerTransport();
                 await server.connect(transport);
-                console.error('12306 MCP Server running on stdio @Joooook');
+                console.error('12306 MCP Server running on stdio ');
+                console.error('[Main] READY');
             }
         } catch (error) {
             console.error('Fatal error in main():', error);
