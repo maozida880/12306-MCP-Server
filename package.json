@@ -5,7 +5,8 @@
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "bin": {
-    "12306-mcp": "./build/index.js"
+    "12306-mcp": "./build/index.js",
+    "12306-mcp-server": "./build/index.js"
   },
   "files": [
     "build/",
