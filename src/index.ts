@@ -738,6 +738,35 @@ server.resource('stations', 'data://all-stations', async (uri) => ({
     contents: [{ uri: uri.href, text: JSON.stringify(STATIONS) }],
 }));
 
+// 添加健康检查工具
+server.tool(
+    'health-check',
+    '检查服务健康状态，包括会话池状态和系统信息',
+    {},
+    async () => {
+        const health = sessionManager.getHealthStatus();
+        const poolStatus = sessionManager.getPoolStatus();
+        
+        return {
+            content: [{
+                type: 'text',
+                text: JSON.stringify({
+                    status: 'healthy',
+                    timestamp: new Date().toISOString(),
+                    version: VERSION,
+                    transport: process.env.TRANSPORT_MODE || 'stdio',
+                    sessionManager: {
+                        isHealthy: health.isHealthy,
+                        poolStatus: poolStatus,
+                        pendingRequests: health.pendingRequests
+                    },
+                    uptime: process.uptime()
+                }, null, 2)
+            }]
+        };
+    }
+);
+
 server.tool(
     'get-current-date',
     '获取当前日期，以上海时区（Asia/Shanghai, UTC+8）为准，返回格式为 "yyyy-MM-dd"。主要用于解析用户提到的相对日期（如"明天"、"下周三"），提供准确的日期输入。',
