@@ -81,13 +81,13 @@ npm start
 
 ```bash
 # 拉取镜像
-docker pull your-username/12306-mcp-server:latest
+docker pull maozida880/12306-mcp-server:latest
 
 # 运行容器
 docker run -d -p 8080:8080 \
   -e SESSION_POOL_MAX_SIZE=10 \
   --name 12306-mcp \
-  your-username/12306-mcp-server:latest
+  maozida880/12306-mcp-server:latest
 ```
 
 ### 4. Docker Compose 部署（推荐用于生产）
@@ -217,7 +217,7 @@ export SESSION_POOL_MAX_SIZE=10
 
 | 指标 | v0.3.x | v1.0.0 | 提升 |
 |------|--------|--------|------|
-| 响应时间 (P95) | 2.5s | 1.5s | +40% |
+| 响应时间 (P95) | 2.5s | 0.5s | +80% |
 | 吞吐量 | 2.5 req/s | 8.2 req/s | +228% |
 | 成功率 | 92% | 99.5% | +8.2% |
 | 会话复用率 | 10% | 90%+ | +800% |
